@@ -1,0 +1,63 @@
+version: "3.9"
+services:
+  questdb:
+    image: questdb/questdb:9.0
+    restart: unless-stopped
+    environment:
+      - QDB_PG_PORT=8812
+    ports:
+      - "8812:8812"
+      - "9000:9000"
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    restart: unless-stopped
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on: [zookeeper]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+
+  nautilus:
+    image: ghcr.io/nautechsystems/nautilus_trader:1.219.0-python
+    depends_on: [kafka, questdb]
+    environment:
+      NT__CONFIG__REDIS__HOST: redis
+    volumes:
+      - ./config/nautilus:/nautilus/config
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana-oss:11.0.0
+    depends_on: [prometheus]
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  grafana-data:
